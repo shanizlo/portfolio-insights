@@ -237,7 +237,8 @@ def ingest_prices(df: pd.DataFrame, db: Session) -> dict:
             error(result, i, "Invalid date")
             continue
         if row["Ticker"] not in valid_tickers:
-            warn(result, i, f"Unknown ticker: {row['Ticker']}")
+            error(result, i, f"Unknown ticker: {row['Ticker']} (skipping row)")
+            continue
         rows.append({
             "ticker":     row["Ticker"],
             "price_date": price_date,

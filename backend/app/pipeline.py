@@ -174,17 +174,32 @@ def ingest_account_map(df: pd.DataFrame, db: Session) -> dict:
     valid_customers = {r[0] for r in db.query(Customer.customer_id).all()}
     db.query(AccountMap).delete()
 
-    for i, (_, row) in enumerate(df.iterrows(), start=2):
-        if row["cust_id"] not in valid_customers:
-            warn(result, i, f"Orphaned account — no matching customer: {row['cust_id']}")
-        db.add(AccountMap(
-            customer_id      = row["cust_id"] if row["cust_id"] in valid_customers else None,
-            external_account = row["external_account"],
-            segment_tag      = row["SegmentTag"],
-        ))
+    rows: list[dict] = []
 
-    db.commit()
-    result["processed"] = len(df)
+    for i, (_, row) in enumerate(df.iterrows(), start=2):
+        cust_id_raw = str(row["cust_id"]).strip()
+        ext_raw     = str(row["external_account"]).strip()
+        seg_raw     = str(row["SegmentTag"]).strip()
+
+        if cust_id_raw not in valid_customers:
+            warn(result, i, f"Orphaned account — no matching customer: {cust_id_raw}")
+
+        rows.append(
+            {
+                "customer_id": cust_id_raw if cust_id_raw in valid_customers else None,
+                "external_account": ext_raw,
+                "segment_tag": seg_raw,
+            }
+        )
+
+    if rows:
+        # Use a plain Core insert so column types are taken directly from the
+        # SQLAlchemy model (all VARCHAR for these three fields), avoiding any
+        # accidental numeric casting.
+        db.execute(insert(AccountMap).values(rows))
+        db.commit()
+
+    result["processed"] = len(rows)
     return result
 
 

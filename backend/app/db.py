@@ -147,4 +147,36 @@ class IngestionJob(Base):
 
 
 def init_db():
+    """
+    Create all tables if they don't exist yet, and apply any lightweight
+    schema fixes needed for the POC database.
+    """
     Base.metadata.create_all(bind=engine)
+
+    # POC schema guard: ensure account_map.external_account is a string type.
+    # SQLAlchemy `create_all()` does not modify existing column types, so if
+    # the column was created incorrectly earlier (e.g. double precision),
+    # ingestion of IDs like "ACCT-000000" will fail.
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                  IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'account_map'
+                      AND column_name = 'external_account'
+                  ) THEN
+                    ALTER TABLE public.account_map
+                      ALTER COLUMN external_account
+                      TYPE varchar(64)
+                      USING external_account::text;
+                  END IF;
+                END;
+                $$;
+                """
+            )
+        )

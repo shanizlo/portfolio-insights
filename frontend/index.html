@@ -181,7 +181,10 @@
     <div class="charts-grid">
       <div class="card">
         <div class="card-header">AUM by Sector</div>
-        <div class="card-body"><canvas id="sectorChart" height="220"></canvas></div>
+        <div class="card-body">
+          <div id="sectorLoading" class="loading" style="display:none">Loading…</div>
+          <canvas id="sectorChart" height="220"></canvas>
+        </div>
       </div>
       <div class="card">
         <div class="card-header">Data Freshness</div>
@@ -362,6 +365,14 @@ function showPage(name, btn) {
 // ── Dashboard ─────────────────────────────────────────────────────────────
 async function loadDashboard() {
   try {
+    const sectorLoading = document.getElementById('sectorLoading');
+    if (sectorLoading) sectorLoading.style.display = 'block';
+    document.getElementById('statAum').textContent = 'Loading…';
+    document.getElementById('statCustomers').textContent = 'Loading…';
+    document.getElementById('statTrades').textContent = 'Loading…';
+    document.getElementById('statSnapshot').textContent = 'Loading…';
+    document.getElementById('freshnessGrid').innerHTML = '<div class="loading">Loading…</div>';
+
     const s = await apiFetch('/summary');
     document.getElementById('statAum').textContent = fmt(s.total_aum_usd);
     document.getElementById('statCustomers').textContent = s.customer_count.toLocaleString();
@@ -394,8 +405,15 @@ async function loadDashboard() {
         }
       }
     });
+    if (sectorLoading) sectorLoading.style.display = 'none';
   } catch(e) {
-    console.error(e);
+    document.getElementById('statAum').textContent = '—';
+    document.getElementById('statCustomers').textContent = '—';
+    document.getElementById('statTrades').textContent = '—';
+    document.getElementById('statSnapshot').textContent = '—';
+    document.getElementById('freshnessGrid').innerHTML = `<div class="error-msg">Failed to load: ${e.message}</div>`;
+    const sectorLoading = document.getElementById('sectorLoading');
+    if (sectorLoading) sectorLoading.textContent = 'Failed to load';
   }
 }
 

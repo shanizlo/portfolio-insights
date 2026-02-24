@@ -3,6 +3,7 @@
 Internal data ingestion and analytics service. Ingests financial data from CSV/Excel files, stores it in PostgreSQL, and exposes a REST API + lightweight dashboard.
 
 ---
+![alt text](image.png)
 
 ## Architecture
 
@@ -164,3 +165,4 @@ portfolio-insights/
 **Append-only fact tables** — trades, holdings, prices, and FX rates are never overwritten. Duplicate detection uses unique constraints. Reference tables (customers, stocks, rules) use full-replace transactions.
 
 **CSV and Excel** — both formats are supported transparently. `pandas.read_csv` and `pandas.read_excel` both produce a DataFrame; the rest of the pipeline is identical.
+

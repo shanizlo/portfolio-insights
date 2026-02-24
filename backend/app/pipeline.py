@@ -144,6 +144,13 @@ def ingest_customers(df: pd.DataFrame, db: Session) -> dict:
     result = make_result()
     df = to_dates(df, ["JoinDate"])
 
+    # Because other tables (trades, holdings, account_map) reference customers
+    # via foreign keys, we must clear those first before replacing customers.
+    # This keeps the simple "full replace" behavior for the POC without
+    # hitting FK violations.
+    db.query(Trade).delete()
+    db.query(HoldingSnapshot).delete()
+    db.query(AccountMap).delete()
     db.query(Customer).delete()
     for _, row in df.iterrows():
         db.add(Customer(

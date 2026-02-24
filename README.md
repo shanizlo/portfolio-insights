@@ -111,19 +111,22 @@ Full interactive docs at **http://localhost:8000/docs** (Swagger UI).
 Tests use SQLite and do not require Docker or a running server.
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# 1) Local (recommended)
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+pytest -q --tb=short
 
-# Run all tests
-pytest
-
-# With coverage
-pytest --tb=short -v
+# 2) Optional — run in a container (no local Python needed)
+docker run --rm -v "$PWD":/workspace -w /workspace \
+  python:3.11 bash -lc "pip install -q -r requirements.txt && pytest -q --tb=short"
 ```
 
 Tests are split into:
-- `tests/test_pipeline.py` — unit tests for all pipeline stages (parse, schema validation, quality checks, normalization, DB writes)
-- `tests/test_api.py` — integration tests for all API endpoints using FastAPI's TestClient
+- `tests/test_pipeline.py` — core pipeline unit tests (parse, date conversion, basic ingest)
+- `tests/test_api.py` — core API integration tests (health, summary, customers, holdings, discount, instruments)
+
+POC scope intentionally omits queue/ingestion flow and detailed trade behavior from tests.
 
 ---
 
@@ -133,27 +136,17 @@ Tests are split into:
 portfolio-insights/
 ├── backend/
 │   └── app/
-│       ├── main.py              # FastAPI app, startup, worker launch
-│       ├── config.py            # Settings (DATABASE_URL, API_KEY)
-│       ├── db.py                # SQLAlchemy engine, session, init_db
-│       ├── models.py            # All ORM models (9 tables)
-│       ├── queue.py             # QueueBackend protocol + InMemoryQueue
-│       ├── worker.py            # Async worker loop
-│       ├── pipeline/
-│       │   ├── base.py          # Shared steps: parse, normalize, run_pipeline
-│       │   ├── trades.py        # Trades-specific pipeline
-│       │   ├── holdings.py      # Holdings-specific pipeline
-│       │   └── handlers.py      # All other file type handlers
-│       └── routers/
-│           ├── ingest.py        # POST /ingest/* endpoints
-│           └── query.py         # GET query endpoints
+│       ├── main.py          # FastAPI app, endpoints, startup, worker launch
+│       ├── db.py            # Engine/session, ORM models, init_db
+│       ├── pipeline.py      # Ingestion pipelines and handlers
+│       └── worker.py        # Async worker loop
 ├── frontend/
-│   └── index.html               # Single-file dashboard (vanilla JS + Chart.js)
+│   └── index.html           # Single-file dashboard (vanilla JS + Chart.js)
 ├── tests/
-│   ├── conftest.py              # Shared fixtures, SQLite test DB
-│   ├── test_pipeline.py         # Pipeline unit tests
-│   └── test_api.py              # API integration tests
-├── sample_data/                 # Sample CSV files
+│   ├── conftest.py          # SQLite test DB, TestClient wiring
+│   ├── test_pipeline.py     # Pipeline unit tests (core)
+│   └── test_api.py          # API integration tests (core queries)
+├── sample_data/             # Sample CSV files
 ├── docker-compose.yml
 ├── Dockerfile
 ├── pytest.ini

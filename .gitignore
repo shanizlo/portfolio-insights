@@ -1,0 +1,46 @@
+### OS / Editor ###
+.DS_Store
+.idea/
+.vscode/
+
+### Python cache / build ###
+__pycache__/
+*.py[cod]
+*$py.class
+
+build/
+dist/
+*.egg-info/
+.eggs/
+
+### Environments ###
+.venv/
+venv/
+env/
+ENV/
+
+### Testing / Coverage ###
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+### Logs / local output ###
+*.log
+logs/
+
+### Local settings / secrets ###
+.env
+.env.*
+
+### Database / backups ###
+*.db
+*.sqlite3
+*.sqlite
+*.bak
+
+### Node / frontend (if present) ###
+node_modules/
+*.tsbuildinfo

@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfolio Insights Platform</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:    #1F4E79;
+      --mid:     #2E75B6;
+      --light:   #EBF3FB;
+      --border:  #D0E4F5;
+      --text:    #1a1a2e;
+      --muted:   #6b7280;
+      --green:   #059669;
+      --red:     #dc2626;
+      --white:   #ffffff;
+      --bg:      #f4f7fb;
+    }
+
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    header {
+      background: var(--blue); color: var(--white);
+      padding: 0 32px; height: 56px; display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
+    header .controls { display: flex; align-items: center; gap: 16px; }
+    header select, header input {
+      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+      color: white; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;
+    }
+    header select option { background: var(--blue); }
+
+    nav {
+      background: var(--white); border-bottom: 1px solid var(--border);
+      padding: 0 32px; display: flex; gap: 0;
+    }
+    nav button {
+      background: none; border: none; padding: 14px 20px; font-size: 14px;
+      color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent;
+      transition: all 0.15s; font-weight: 500;
+    }
+    nav button.active { color: var(--mid); border-bottom-color: var(--mid); }
+    nav button:hover:not(.active) { color: var(--text); background: var(--light); }
+
+    main { padding: 28px 32px; max-width: 1400px; margin: 0 auto; }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* Cards */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-bottom: 28px; }
+    .stat-card {
+      background: var(--white); border-radius: 10px; padding: 20px 24px;
+      border: 1px solid var(--border); box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .stat-card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .stat-card .value { font-size: 26px; font-weight: 700; color: var(--blue); }
+    .stat-card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    .card {
+      background: var(--white); border-radius: 10px; border: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 24px;
+    }
+    .card-header {
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      font-weight: 600; font-size: 15px; color: var(--blue);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-body { padding: 20px 24px; }
+
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th { background: var(--blue); color: white; padding: 10px 14px; text-align: left; font-weight: 600; font-size: 12px; }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: var(--light); }
+    tr:hover td { background: #dbeafe; }
+
+    .badge {
+      display: inline-block; padding: 2px 9px; border-radius: 12px; font-size: 11px; font-weight: 600;
+    }
+    .badge-buy { background: #d1fae5; color: #065f46; }
+    .badge-sell { background: #fee2e2; color: #991b1b; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+
+    /* Forms & filters */
+    .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
+    .filters input, .filters select {
+      padding: 8px 12px; border: 1px solid var(--border); border-radius: 7px;
+      font-size: 13px; background: white; color: var(--text);
+    }
+    .filters input:focus, .filters select:focus { outline: 2px solid var(--mid); border-color: transparent; }
+    .btn {
+      padding: 8px 18px; border-radius: 7px; border: none; cursor: pointer;
+      font-size: 13px; font-weight: 600; transition: 0.15s;
+    }
+    .btn-primary { background: var(--mid); color: white; }
+    .btn-primary:hover { background: var(--blue); }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    .freshness-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .freshness-item { background: var(--light); border-radius: 8px; padding: 12px 16px; border: 1px solid var(--border); }
+    .freshness-item .name { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+    .freshness-item .date { font-size: 14px; font-weight: 600; color: var(--blue); margin-top: 4px; }
+
+    .loading { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+    .error-msg { color: var(--red); font-size: 13px; padding: 8px 0; }
+
+    .customer-detail-header {
+      display: flex; align-items: center; gap: 20px; margin-bottom: 24px;
+      background: var(--white); border-radius: 10px; border: 1px solid var(--border);
+      padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .customer-avatar {
+      width: 48px; height: 48px; border-radius: 50%; background: var(--mid);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 20px; font-weight: 700; flex-shrink: 0;
+    }
+    .customer-meta h2 { font-size: 18px; font-weight: 700; color: var(--blue); }
+    .customer-meta p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .discount-badge {
+      margin-left: auto; background: #d1fae5; border: 1px solid #6ee7b7;
+      border-radius: 8px; padding: 12px 20px; text-align: center;
+    }
+    .discount-badge .pct { font-size: 22px; font-weight: 800; color: #065f46; }
+    .discount-badge .lbl { font-size: 11px; color: #047857; }
+
+    .tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    .tab-btn {
+      background: none; border: none; padding: 10px 18px; font-size: 13px; font-weight: 500;
+      color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active { color: var(--mid); border-bottom-color: var(--mid); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📊 Portfolio Insights Platform</h1>
+  <div class="controls">
+    <select id="currencySelect" onchange="setCurrency(this.value)">
+      <option value="USD">$ USD</option>
+      <option value="GBP">£ GBP</option>
+      <option value="EUR">€ EUR</option>
+      <option value="ILS">₪ ILS</option>
+    </select>
+    <input id="apiKeyInput" type="password" placeholder="API Key" value="dev-internal-key" />
+  </div>
+</header>
+
+<nav>
+  <button class="active" onclick="showPage('dashboard', this)">Dashboard</button>
+  <button onclick="showPage('customers', this)">Customers</button>
+  <button onclick="showPage('instruments', this)">Instruments</button>
+  <button onclick="showPage('ingest', this)">Data Ingest</button>
+</nav>
+
+<main>
+
+  <!-- ── DASHBOARD ──────────────────────────────────────── -->
+  <div id="page-dashboard" class="page active">
+    <div class="stat-grid" id="dashStats">
+      <div class="stat-card"><div class="label">Total AUM</div><div class="value" id="statAum">—</div><div class="sub">in USD</div></div>
+      <div class="stat-card"><div class="label">Customers</div><div class="value" id="statCustomers">—</div></div>
+      <div class="stat-card"><div class="label">Trades (30d)</div><div class="value" id="statTrades">—</div></div>
+      <div class="stat-card"><div class="label">Snapshot Date</div><div class="value" id="statSnapshot" style="font-size:16px">—</div></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-header">AUM by Sector</div>
+        <div class="card-body"><canvas id="sectorChart" height="220"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header">Data Freshness</div>
+        <div class="card-body">
+          <div class="freshness-grid" id="freshnessGrid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CUSTOMERS ─────────────────────────────────────── -->
+  <div id="page-customers" class="page">
+    <div id="customerList">
+      <div class="filters">
+        <input id="custSearch" type="text" placeholder="Search customers…" oninput="filterCustomers()" style="width:260px" />
+      </div>
+      <div class="card">
+        <div class="card-header">Customers</div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Name</th><th>Segment</th><th>Tenure (yrs)</th><th></th></tr></thead>
+              <tbody id="custTableBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="customerDetail" style="display:none">
+      <button class="btn btn-primary btn-sm" onclick="showCustomerList()" style="margin-bottom:16px">← Back to Customers</button>
+      <div class="customer-detail-header" id="custDetailHeader"></div>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="showTab('holdings', this)">Holdings</button>
+        <button class="tab-btn" onclick="showTab('portfolio-chart', this)">Portfolio Value</button>
+        <button class="tab-btn" onclick="showTab('trades', this)">Trade History</button>
+      </div>
+      <div id="tab-holdings" class="tab-content active">
+        <div class="card"><div class="card-body" id="holdingsContent"><div class="loading">Loading…</div></div></div>
+      </div>
+      <div id="tab-portfolio-chart" class="tab-content">
+        <div class="card"><div class="card-body"><canvas id="portfolioChart" height="120"></canvas></div></div>
+      </div>
+      <div id="tab-trades" class="tab-content">
+        <div class="filters">
+          <select id="tradesSide"><option value="">All sides</option><option>BUY</option><option>SELL</option></select>
+          <input id="tradesFrom" type="date" />
+          <input id="tradesTo" type="date" />
+          <button class="btn btn-primary btn-sm" onclick="loadTrades()">Filter</button>
+        </div>
+        <div class="card"><div class="card-body" id="tradesContent"><div class="loading">Loading…</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── INSTRUMENTS ────────────────────────────────────── -->
+  <div id="page-instruments" class="page">
+    <div class="filters">
+      <input id="instrSearch" type="text" placeholder="Search ticker or company…" style="width:280px" />
+      <button class="btn btn-primary btn-sm" onclick="searchInstruments()">Search</button>
+    </div>
+    <div class="card">
+      <div class="card-header">Instruments</div>
+      <div class="card-body">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Ticker</th><th>Company</th><th>Sector</th><th>Exchange</th><th>Currency</th><th>Country</th></tr></thead>
+            <tbody id="instrTableBody"><tr><td colspan="6" class="loading">Search to load instruments</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div id="instrDetail" style="display:none">
+      <div class="card">
+        <div class="card-header" id="instrDetailTitle">Price History</div>
+        <div class="card-body">
+          <div class="filters" style="margin-bottom:12px">
+            <input id="instrFrom" type="date" />
+            <input id="instrTo" type="date" />
+            <button class="btn btn-primary btn-sm" onclick="loadPriceHistory()">Load</button>
+          </div>
+          <canvas id="priceChart" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── INGEST ─────────────────────────────────────────── -->
+  <div id="page-ingest" class="page">
+    <div class="card">
+      <div class="card-header">Upload Data File</div>
+      <div class="card-body">
+        <div class="filters" style="gap:16px; flex-direction:column; align-items:flex-start">
+          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+            <select id="ingestType" style="padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px">
+              <option value="stocks">stocks_master</option>
+              <option value="customers">customers</option>
+              <option value="fx-rates">fx_rates_usd</option>
+              <option value="discount-rules">discount_rules</option>
+              <option value="prices">price_history</option>
+              <option value="holdings">holdings_snapshot</option>
+              <option value="trades">trades_source</option>
+              <option value="account-map">account_map</option>
+            </select>
+            <input id="ingestSource" type="text" placeholder="Source tag (trades only)" style="padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; width:200px" />
+            <input id="ingestFile" type="file" accept=".csv,.xlsx" />
+            <button class="btn btn-primary" onclick="uploadFile()">Upload & Ingest</button>
+          </div>
+          <div id="ingestStatus" style="font-size:13px; color:var(--muted)">Select a file type and upload a CSV or Excel file.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        Recent Ingest Jobs
+        <button class="btn btn-primary btn-sm" onclick="loadJobs()">Refresh</button>
+      </div>
+      <div class="card-body">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Job ID</th><th>File Type</th><th>Status</th><th>Processed</th><th>Warnings</th><th>Errors</th><th>Completed</th></tr></thead>
+            <tbody id="jobsTableBody"><tr><td colspan="7" class="loading">No jobs yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const API = 'http://localhost:8000';
+const FX_RATES = { USD: 1, GBP: 1.28, EUR: 1.08, ILS: 0.27 };
+let currency = 'USD';
+let currency_symbols = { USD: '$', GBP: '£', EUR: '€', ILS: '₪' };
+let currentCustomerId = null;
+let sectorChart = null, portfolioChart = null, priceChart = null;
+let allCustomers = [];
+
+function apiKey() { return document.getElementById('apiKeyInput').value; }
+function headers() { return { 'x-api-key': apiKey() }; }
+
+async function apiFetch(path) {
+  const res = await fetch(API + path, { headers: headers() });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+function setCurrency(c) {
+  currency = c;
+  // Reload current page data
+  if (document.getElementById('page-dashboard').classList.contains('active')) loadDashboard();
+  if (currentCustomerId) loadHoldings();
+}
+
+function fmt(usd) {
+  const rate = currency === 'USD' ? 1 : (FX_RATES[currency] || 1);
+  const val = usd / rate;
+  const sym = currency_symbols[currency] || '$';
+  if (val >= 1_000_000) return sym + (val / 1_000_000).toFixed(1) + 'M';
+  if (val >= 1_000) return sym + (val / 1_000).toFixed(1) + 'K';
+  return sym + val.toFixed(2);
+}
+
+// ── Page navigation ───────────────────────────────────────────────────────
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'customers') loadCustomers();
+  if (name === 'ingest') loadJobs();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const s = await apiFetch('/summary');
+    document.getElementById('statAum').textContent = fmt(s.total_aum_usd);
+    document.getElementById('statCustomers').textContent = s.customer_count.toLocaleString();
+    document.getElementById('statTrades').textContent = s.trade_count_30d.toLocaleString();
+    document.getElementById('statSnapshot').textContent = s.latest_snapshot_date || '—';
+
+    // Freshness
+    const fg = document.getElementById('freshnessGrid');
+    fg.innerHTML = Object.entries(s.data_freshness).map(([k, v]) =>
+      `<div class="freshness-item"><div class="name">${k}</div><div class="date">${v || '—'}</div></div>`
+    ).join('');
+
+    // Sector chart
+    const sectors = await apiFetch('/summary/by-sector');
+    const labels = sectors.map(x => x.sector);
+    const data = sectors.map(x => {
+      const rate = currency === 'USD' ? 1 : (FX_RATES[currency] || 1);
+      return x.aum_usd / rate;
+    });
+    const colors = ['#1F4E79','#2E75B6','#4A9FD4','#6EB5E0','#A8D1F0','#C9E4FA','#70AD47','#ED7D31'];
+    if (sectorChart) sectorChart.destroy();
+    const ctx = document.getElementById('sectorChart').getContext('2d');
+    sectorChart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ data, backgroundColor: colors.slice(0, labels.length), borderRadius: 4 }] },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { ticks: { callback: v => (currency_symbols[currency] || '$') + (v/1000).toFixed(0) + 'K' } }
+        }
+      }
+    });
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+// ── Customers ─────────────────────────────────────────────────────────────
+async function loadCustomers() {
+  try {
+    allCustomers = await apiFetch('/customers?limit=200');
+    renderCustomerTable(allCustomers);
+  } catch(e) {
+    document.getElementById('custTableBody').innerHTML = `<tr><td colspan="5" class="error-msg">Failed: ${e.message}</td></tr>`;
+  }
+}
+
+function renderCustomerTable(customers) {
+  const tbody = document.getElementById('custTableBody');
+  if (!customers.length) { tbody.innerHTML = '<tr><td colspan="5">No customers found</td></tr>'; return; }
+  tbody.innerHTML = customers.map(c => `
+    <tr>
+      <td><code>${c.customer_id}</code></td>
+      <td>${c.name}</td>
+      <td><span class="badge badge-green">${c.segment}</span></td>
+      <td>${parseFloat(c.tenure_years).toFixed(1)}</td>
+      <td><button class="btn btn-primary btn-sm" onclick="openCustomer('${c.customer_id}', '${c.name}')">View</button></td>
+    </tr>`).join('');
+}
+
+function filterCustomers() {
+  const q = document.getElementById('custSearch').value.toLowerCase();
+  renderCustomerTable(allCustomers.filter(c =>
+    c.customer_id.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+  ));
+}
+
+async function openCustomer(id, name) {
+  currentCustomerId = id;
+  document.getElementById('customerList').style.display = 'none';
+  document.getElementById('customerDetail').style.display = 'block';
+
+  // Load customer + discount
+  const [cust, discount] = await Promise.all([
+    apiFetch(`/customers/${id}`),
+    apiFetch(`/customers/${id}/discount`).catch(() => null)
+  ]);
+
+  const header = document.getElementById('custDetailHeader');
+  const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  header.innerHTML = `
+    <div class="customer-avatar">${initials}</div>
+    <div class="customer-meta">
+      <h2>${cust.name}</h2>
+      <p>${cust.customer_id} · ${cust.segment} · Joined ${cust.join_date} · ${parseFloat(cust.tenure_years).toFixed(1)} yrs</p>
+    </div>
+    ${discount ? `
+    <div class="discount-badge">
+      <div class="pct">${((discount.total_discount_pct) * 100).toFixed(1)}%</div>
+      <div class="lbl">Fee Discount</div>
+      <div style="font-size:11px;color:#047857;margin-top:2px">Portfolio: ${fmt(discount.portfolio_value_usd)}</div>
+    </div>` : ''}
+  `;
+
+  // Default tab
+  showTab('holdings', document.querySelector('.tab-btn.active'));
+  loadHoldings();
+}
+
+function showCustomerList() {
+  currentCustomerId = null;
+  document.getElementById('customerDetail').style.display = 'none';
+  document.getElementById('customerList').style.display = 'block';
+}
+
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'portfolio-chart') loadPortfolioChart();
+  if (name === 'trades') loadTrades();
+}
+
+async function loadHoldings() {
+  document.getElementById('holdingsContent').innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const data = await apiFetch(`/customers/${currentCustomerId}/holdings`);
+    if (!data.holdings || !data.holdings.length) {
+      document.getElementById('holdingsContent').innerHTML = '<p style="color:var(--muted)">No holdings found for this customer.</p>';
+      return;
+    }
+    const rows = data.holdings.map(h => `
+      <tr>
+        <td><strong>${h.ticker}</strong></td>
+        <td>${h.company_name || '—'}</td>
+        <td>${h.sector || '—'}</td>
+        <td>${h.quantity.toLocaleString()}</td>
+        <td>${h.currency} ${parseFloat(h.close_price).toFixed(2)}</td>
+        <td><strong>${fmt(h.value_usd)}</strong></td>
+        <td>${h.pct_of_portfolio}%</td>
+      </tr>`).join('');
+    document.getElementById('holdingsContent').innerHTML = `
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        As of ${data.as_of}  ·  Total: <strong>${fmt(data.total_value_usd)}</strong>
+      </p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Ticker</th><th>Company</th><th>Sector</th><th>Qty</th><th>Price</th><th>Value</th><th>%</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+  } catch(e) {
+    document.getElementById('holdingsContent').innerHTML = `<div class="error-msg">Failed to load: ${e.message}</div>`;
+  }
+}
+
+async function loadPortfolioChart() {
+  if (!currentCustomerId) return;
+  const end = new Date().toISOString().slice(0, 10);
+  const start = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  try {
+    const data = await apiFetch(`/customers/${currentCustomerId}/portfolio-value?from_date=${start}&to_date=${end}`);
+    if (portfolioChart) portfolioChart.destroy();
+    const ctx = document.getElementById('portfolioChart').getContext('2d');
+    portfolioChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.map(d => d.date),
+        datasets: [{
+          label: `Portfolio Value (${currency})`,
+          data: data.map(d => {
+            const rate = currency === 'USD' ? 1 : (FX_RATES[currency] || 1);
+            return d.value_usd / rate;
+          }),
+          borderColor: '#2E75B6', backgroundColor: 'rgba(46,117,182,0.1)',
+          fill: true, tension: 0.3, pointRadius: 2,
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: { y: { ticks: { callback: v => (currency_symbols[currency] || '$') + (v/1000).toFixed(0) + 'K' } } }
+      }
+    });
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+async function loadTrades() {
+  if (!currentCustomerId) return;
+  document.getElementById('tradesContent').innerHTML = '<div class="loading">Loading…</div>';
+  const side = document.getElementById('tradesSide').value;
+  const from = document.getElementById('tradesFrom').value;
+  const to = document.getElementById('tradesTo').value;
+  let url = `/customers/${currentCustomerId}/trades?limit=100`;
+  if (side) url += `&side=${side}`;
+  if (from) url += `&from_date=${from}`;
+  if (to) url += `&to_date=${to}`;
+  try {
+    const data = await apiFetch(url);
+    if (!data.trades.length) {
+      document.getElementById('tradesContent').innerHTML = '<p style="color:var(--muted)">No trades found.</p>';
+      return;
+    }
+    const rows = data.trades.map(t => `
+      <tr>
+        <td>${t.trade_date}</td>
+        <td><strong>${t.ticker}</strong></td>
+        <td><span class="badge badge-${t.side.toLowerCase()}">${t.side}</span></td>
+        <td>${t.quantity.toLocaleString()}</td>
+        <td>${t.trade_currency} ${t.price.toFixed(2)}</td>
+        <td>${t.price_usd ? fmt(t.price_usd) : '—'}</td>
+        <td>${t.fee_usd != null ? '$' + t.fee_usd.toFixed(2) : '—'}</td>
+        <td style="color:var(--muted);font-size:12px">${t.source}</td>
+      </tr>`).join('');
+    document.getElementById('tradesContent').innerHTML = `
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Showing ${data.trades.length} of ${data.total} trades</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Ticker</th><th>Side</th><th>Qty</th><th>Price</th><th>USD Value</th><th>Fee</th><th>Source</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+  } catch(e) {
+    document.getElementById('tradesContent').innerHTML = `<div class="error-msg">Failed: ${e.message}</div>`;
+  }
+}
+
+// ── Instruments ───────────────────────────────────────────────────────────
+let selectedTicker = null;
+
+async function searchInstruments() {
+  const q = document.getElementById('instrSearch').value;
+  try {
+    const data = await apiFetch(`/instruments?search=${encodeURIComponent(q)}&limit=50`);
+    const tbody = document.getElementById('instrTableBody');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">No results</td></tr>'; return; }
+    tbody.innerHTML = data.map(s => `
+      <tr style="cursor:pointer" onclick="selectInstrument('${s.ticker}')">
+        <td><strong>${s.ticker}</strong></td><td>${s.company_name}</td>
+        <td>${s.sector}</td><td>${s.exchange}</td><td>${s.currency}</td><td>${s.country}</td>
+      </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+function selectInstrument(ticker) {
+  selectedTicker = ticker;
+  document.getElementById('instrDetail').style.display = 'block';
+  document.getElementById('instrDetailTitle').textContent = ticker + ' — Price History';
+  const end = new Date().toISOString().slice(0, 10);
+  const start = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  document.getElementById('instrFrom').value = start;
+  document.getElementById('instrTo').value = end;
+  loadPriceHistory();
+}
+
+async function loadPriceHistory() {
+  if (!selectedTicker) return;
+  const from = document.getElementById('instrFrom').value;
+  const to = document.getElementById('instrTo').value;
+  try {
+    const data = await apiFetch(`/instruments/${selectedTicker}/prices?from_date=${from}&to_date=${to}`);
+    if (priceChart) priceChart.destroy();
+    const ctx = document.getElementById('priceChart').getContext('2d');
+    priceChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.map(d => d.date),
+        datasets: [{
+          label: `${selectedTicker} Close`,
+          data: data.map(d => d.close),
+          borderColor: '#1F4E79', backgroundColor: 'rgba(31,78,121,0.08)',
+          fill: true, tension: 0.3, pointRadius: 1,
+        }]
+      },
+      options: { plugins: { legend: { display: false } } }
+    });
+  } catch(e) { console.error(e); }
+}
+
+// ── Ingest ─────────────────────────────────────────────────────────────────
+async function uploadFile() {
+  const fileType = document.getElementById('ingestType').value;
+  const source = document.getElementById('ingestSource').value || 'upload';
+  const fileInput = document.getElementById('ingestFile');
+  const status = document.getElementById('ingestStatus');
+
+  if (!fileInput.files[0]) { status.textContent = '⚠ Please select a file.'; return; }
+
+  const form = new FormData();
+  form.append('file', fileInput.files[0]);
+
+  let url = `${API}/ingest/${fileType}`;
+  if (fileType === 'trades') url += `?source=${encodeURIComponent(source)}`;
+
+  status.textContent = '⏳ Uploading…';
+  try {
+    const res = await fetch(url, { method: 'POST', headers: { 'x-api-key': apiKey() }, body: form });
+    const data = await res.json();
+    if (!res.ok) { status.textContent = `❌ Error: ${JSON.stringify(data.detail)}`; return; }
+    status.textContent = `✅ Job queued: ${data.job_id} — polling for result…`;
+    pollJob(data.job_id, status);
+    loadJobs();
+  } catch(e) {
+    status.textContent = `❌ Upload failed: ${e.message}`;
+  }
+}
+
+async function pollJob(jobId, statusEl) {
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const data = await apiFetch(`/ingest/status/${jobId}`);
+      if (data.status === 'done') {
+        statusEl.textContent = `✅ Done — ${data.records_processed} records, ${data.warning_count} warnings, ${data.error_count} errors`;
+        loadJobs();
+        return;
+      }
+      if (data.status === 'failed') {
+        statusEl.textContent = `❌ Failed: ${JSON.stringify(data.errors?.[0])}`;
+        loadJobs();
+        return;
+      }
+    } catch(e) { /* continue polling */ }
+  }
+  statusEl.textContent = '⚠ Timed out waiting for job result.';
+}
+
+async function loadJobs() {
+  // We don't have a list-all-jobs endpoint, so we track recent ones in localStorage
+  const tbody = document.getElementById('jobsTableBody');
+  tbody.innerHTML = '<tr><td colspan="7" class="loading">Use the upload form to create jobs</td></tr>';
+}
+
+// Init
+loadDashboard();
+</script>
+</body>
+</html>

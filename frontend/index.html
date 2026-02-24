@@ -355,6 +355,7 @@ function showPage(name, btn) {
   btn.classList.add('active');
   if (name === 'dashboard') loadDashboard();
   if (name === 'customers') loadCustomers();
+  if (name === 'instruments') searchInstruments();
   if (name === 'ingest') loadJobs();
 }
 
@@ -599,9 +600,10 @@ let selectedTicker = null;
 
 async function searchInstruments() {
   const q = document.getElementById('instrSearch').value;
+  const tbody = document.getElementById('instrTableBody');
+  tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
   try {
     const data = await apiFetch(`/instruments?search=${encodeURIComponent(q)}&limit=50`);
-    const tbody = document.getElementById('instrTableBody');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="6">No results</td></tr>'; return; }
     tbody.innerHTML = data.map(s => `
       <tr style="cursor:pointer" onclick="selectInstrument('${s.ticker}')">

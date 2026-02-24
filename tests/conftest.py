@@ -24,14 +24,24 @@ def setup_db():
 
 @pytest.fixture()
 def db():
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
-    yield session
-    session.rollback()
-    session.close()
+    try:
+        yield session
+    finally:
+        session.rollback()
+        session.close()
 
 
 @pytest.fixture()
 def client(db):
+    # Disable startup/shutdown events (worker loop, init_db) in tests
+    try:
+        app.router.on_startup.clear()
+        app.router.on_shutdown.clear()
+    except Exception:
+        pass
     # Override the DB dependency so the API uses the test SQLite DB
     app.dependency_overrides[get_db] = lambda: db
     with TestClient(app) as c:

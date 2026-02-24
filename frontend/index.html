@@ -648,6 +648,7 @@ async function uploadFile() {
     const data = await res.json();
     if (!res.ok) { status.textContent = `❌ Error: ${JSON.stringify(data.detail)}`; return; }
     status.textContent = `✅ Job queued: ${data.job_id} — polling for result…`;
+    upsertJob({ job_id: data.job_id, type: fileType, status: 'queued', records_processed: 0, warning_count: 0, error_count: 0, started_at: new Date().toISOString() });
     pollJob(data.job_id, status);
     loadJobs();
   } catch(e) {
@@ -662,11 +663,13 @@ async function pollJob(jobId, statusEl) {
       const data = await apiFetch(`/ingest/status/${jobId}`);
       if (data.status === 'done') {
         statusEl.textContent = `✅ Done — ${data.records_processed} records, ${data.warning_count} warnings, ${data.error_count} errors`;
+        upsertJob({ job_id: jobId, status: 'done', records_processed: data.records_processed, warning_count: data.warning_count, error_count: data.error_count, completed_at: data.completed_at || new Date().toISOString() });
         loadJobs();
         return;
       }
       if (data.status === 'failed') {
         statusEl.textContent = `❌ Failed: ${JSON.stringify(data.errors?.[0])}`;
+        upsertJob({ job_id: jobId, status: 'failed', completed_at: data.completed_at || new Date().toISOString() });
         loadJobs();
         return;
       }
@@ -676,9 +679,62 @@ async function pollJob(jobId, statusEl) {
 }
 
 async function loadJobs() {
-  // We don't have a list-all-jobs endpoint, so we track recent ones in localStorage
   const tbody = document.getElementById('jobsTableBody');
-  tbody.innerHTML = '<tr><td colspan="7" class="loading">Use the upload form to create jobs</td></tr>';
+  const jobs = getJobs();
+  if (!jobs.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="loading">No jobs yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+  try {
+    const updates = await Promise.all(jobs.map(async j => {
+      try {
+        const s = await apiFetch(`/ingest/status/${j.job_id}`);
+        return {
+          job_id: j.job_id,
+          type: j.type,
+          status: s.status || j.status,
+          records_processed: s.records_processed ?? j.records_processed ?? 0,
+          warning_count: s.warning_count ?? j.warning_count ?? 0,
+          error_count: s.error_count ?? j.error_count ?? 0,
+          completed_at: s.completed_at || j.completed_at || (s.status === 'done' || s.status === 'failed' ? new Date().toISOString() : null),
+          started_at: j.started_at || s.started_at || null
+        };
+      } catch {
+        return j;
+      }
+    }));
+    saveJobs(updates);
+    const rows = updates.map(j => `
+      <tr>
+        <td><code>${j.job_id}</code></td>
+        <td>${j.type || '—'}</td>
+        <td>${j.status || 'unknown'}</td>
+        <td>${j.records_processed != null ? j.records_processed.toLocaleString() : '—'}</td>
+        <td>${j.warning_count != null ? j.warning_count : '—'}</td>
+        <td>${j.error_count != null ? j.error_count : '—'}</td>
+        <td>${j.completed_at || '—'}</td>
+      </tr>`).join('');
+    tbody.innerHTML = rows;
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="error-msg">Failed to load: ${e.message}</td></tr>`;
+  }
+}
+
+function getJobs() {
+  try { return JSON.parse(localStorage.getItem('recentIngestJobs') || '[]'); } catch { return []; }
+}
+
+function saveJobs(list) {
+  try { localStorage.setItem('recentIngestJobs', JSON.stringify(list.slice(0, 50))); } catch {}
+}
+
+function upsertJob(job) {
+  const list = getJobs();
+  const i = list.findIndex(x => x.job_id === job.job_id);
+  if (i >= 0) list[i] = { ...list[i], ...job };
+  else list.unshift(job);
+  saveJobs(list);
 }
 
 // Init

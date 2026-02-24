@@ -4,6 +4,8 @@ Internal data ingestion and analytics service. Ingests financial data from CSV/E
 
 ---
 ![alt text](image.png)
+![demo_portfolio](https://github.com/user-attachments/assets/66701c6d-d96a-44b4-ba28-f05d0abc5353)
+
 
 ## Architecture
 

@@ -230,14 +230,17 @@ def ingest_prices(df: pd.DataFrame, db: Session) -> dict:
     rows = []
 
     for i, (_, row) in enumerate(df.iterrows(), start=2):
-        if not row["Date"]:
+        price_date = row["Date"]
+
+        # Treat NaT / NaN / empty strings as invalid dates
+        if pd.isna(price_date) or str(price_date).strip() in ("", "NaT", "nan", "NaN"):
             error(result, i, "Invalid date")
             continue
         if row["Ticker"] not in valid_tickers:
             warn(result, i, f"Unknown ticker: {row['Ticker']}")
         rows.append({
             "ticker":     row["Ticker"],
-            "price_date": row["Date"],
+            "price_date": price_date,
             "close":      float(row["Close"]),
             "currency":   row["Currency"],
             "close_usd":  float(row["Close"]),  # USD conversion happens at query time via fx_rates

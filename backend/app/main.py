@@ -10,7 +10,7 @@ import asyncio
 import logging
 import os
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -154,11 +154,17 @@ def summary(db: Session = Depends(get_db)):
     aum = 0.0
 
     if latest_date:
-        # Join holdings with prices on the same date to compute value
+        # Join holdings with nearest prior price to compute value
+        ph_sub = (
+            db.query(PriceHistory.ticker.label("t"), func.max(PriceHistory.price_date).label("d"))
+            .filter(PriceHistory.price_date <= latest_date)
+            .group_by(PriceHistory.ticker)
+        ).subquery()
         rows = (
             db.query(HoldingSnapshot, PriceHistory)
+            .join(ph_sub, ph_sub.c.t == HoldingSnapshot.ticker)
             .join(PriceHistory, (PriceHistory.ticker == HoldingSnapshot.ticker) &
-                                (PriceHistory.price_date == latest_date))
+                                 (PriceHistory.price_date == ph_sub.c.d))
             .filter(HoldingSnapshot.as_of_date == latest_date)
             .all()
         )
@@ -166,11 +172,19 @@ def summary(db: Session = Depends(get_db)):
             fx = get_fx_rate(db, p.currency, latest_date)
             aum += h.quantity * float(p.close) * fx
 
+    # Compute trade count in the last 30 days relative to the latest trade date
+    latest_trade_date = db.query(func.max(Trade.trade_date)).scalar()
+    thirty_day_count = 0
+    if latest_trade_date:
+        start_date = latest_trade_date - timedelta(days=30)
+        thirty_day_count = db.query(func.count(Trade.id)).filter(
+            Trade.trade_date >= start_date
+        ).scalar()
+
     return {
         "total_aum_usd":       round(aum, 2),
         "customer_count":      db.query(func.count(Customer.customer_id)).scalar(),
-        "trade_count_30d":     db.query(func.count(Trade.id))
-                                 .filter(Trade.trade_date >= func.current_date() - 30).scalar(),
+        "trade_count_30d":     thirty_day_count,
         "latest_snapshot_date": latest_date,
         "data_freshness": {
             "trades": str(db.query(func.max(Trade.trade_date)).scalar() or ""),
@@ -187,10 +201,17 @@ def summary_by_sector(db: Session = Depends(get_db)):
     if not latest_date:
         return []
 
+    ph_sub = (
+        db.query(PriceHistory.ticker.label("t"), func.max(PriceHistory.price_date).label("d"))
+        .filter(PriceHistory.price_date <= latest_date)
+        .group_by(PriceHistory.ticker)
+    ).subquery()
+
     rows = (
         db.query(HoldingSnapshot, PriceHistory, Stock)
+        .join(ph_sub, ph_sub.c.t == HoldingSnapshot.ticker)
         .join(PriceHistory, (PriceHistory.ticker == HoldingSnapshot.ticker) &
-                            (PriceHistory.price_date == latest_date))
+                             (PriceHistory.price_date == ph_sub.c.d))
         .join(Stock, Stock.ticker == HoldingSnapshot.ticker)
         .filter(HoldingSnapshot.as_of_date == latest_date)
         .all()

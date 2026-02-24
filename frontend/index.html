@@ -35,6 +35,7 @@
       color: white; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;
     }
     header select option { background: var(--blue); }
+    header .api-label { font-size: 12px; color: rgba(255,255,255,0.9); }
 
     nav {
       background: var(--white); border-bottom: 1px solid var(--border);
@@ -143,6 +144,9 @@
     .tab-btn.active { color: var(--mid); border-bottom-color: var(--mid); }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
+    .site-footer { text-align: center; padding: 16px 0 24px; color: var(--muted); font-size: 12px; }
+    .site-footer a { color: var(--mid); text-decoration: none; }
+    .site-footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -156,6 +160,7 @@
       <option value="EUR">€ EUR</option>
       <option value="ILS">₪ ILS</option>
     </select>
+    <label for="apiKeyInput" class="api-label">API Key</label>
     <input id="apiKeyInput" type="password" placeholder="API Key" value="dev-internal-key" />
   </div>
 </header>
@@ -314,6 +319,11 @@
   </div>
 
 </main>
+
+<footer class="site-footer">
+  by Shani Zlotnik · View source on
+  <a href="https://github.com/shanizlo/portfolio-insights" target="_blank" rel="noopener noreferrer">GitHub</a>
+</footer>
 
 <script>
 const API = 'http://localhost:8000';

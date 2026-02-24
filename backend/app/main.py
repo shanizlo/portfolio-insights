@@ -236,10 +236,17 @@ def get_holdings(customer_id: str, as_of: date = None, db: Session = Depends(get
     if not as_of:
         return {"as_of": None, "total_value_usd": 0, "holdings": []}
 
+    ph_sub = (
+        db.query(PriceHistory.ticker.label("t"), func.max(PriceHistory.price_date).label("d"))
+        .filter(PriceHistory.price_date <= as_of)
+        .group_by(PriceHistory.ticker)
+    ).subquery()
+
     rows = (
         db.query(HoldingSnapshot, PriceHistory, Stock)
+        .join(ph_sub, ph_sub.c.t == HoldingSnapshot.ticker)
         .join(PriceHistory, (PriceHistory.ticker == HoldingSnapshot.ticker) &
-                            (PriceHistory.price_date == as_of))
+                             (PriceHistory.price_date == ph_sub.c.d))
         .join(Stock, Stock.ticker == HoldingSnapshot.ticker)
         .filter(HoldingSnapshot.customer_id == customer_id, HoldingSnapshot.as_of_date == as_of)
         .all()
@@ -283,10 +290,16 @@ def portfolio_value_over_time(customer_id: str, from_date: date = Query(...),
 
     result = []
     for (snap_date,) in dates:
+        ph_sub = (
+            db.query(PriceHistory.ticker.label("t"), func.max(PriceHistory.price_date).label("d"))
+            .filter(PriceHistory.price_date <= snap_date)
+            .group_by(PriceHistory.ticker)
+        ).subquery()
         rows = (
             db.query(HoldingSnapshot, PriceHistory)
+            .join(ph_sub, ph_sub.c.t == HoldingSnapshot.ticker)
             .join(PriceHistory, (PriceHistory.ticker == HoldingSnapshot.ticker) &
-                                (PriceHistory.price_date == snap_date))
+                                 (PriceHistory.price_date == ph_sub.c.d))
             .filter(HoldingSnapshot.customer_id == customer_id,
                     HoldingSnapshot.as_of_date == snap_date)
             .all()

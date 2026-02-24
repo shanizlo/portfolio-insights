@@ -320,6 +320,7 @@ let currency_symbols = { USD: '$', GBP: '£', EUR: '€', ILS: '₪' };
 let currentCustomerId = null;
 let sectorChart = null, portfolioChart = null, priceChart = null;
 let allCustomers = [];
+let lastHoldingsMeta = { as_of: null, total_usd: 0 };
 
 function apiKey() { return document.getElementById('apiKeyInput').value; }
 function headers() { return { 'x-api-key': apiKey() }; }
@@ -482,6 +483,7 @@ async function loadHoldings() {
       document.getElementById('holdingsContent').innerHTML = '<p style="color:var(--muted)">No holdings found for this customer.</p>';
       return;
     }
+    lastHoldingsMeta = { as_of: data.as_of, total_usd: data.total_value_usd };
     const rows = data.holdings.map(h => `
       <tr>
         <td><strong>${h.ticker}</strong></td>
@@ -500,6 +502,9 @@ async function loadHoldings() {
         <thead><tr><th>Ticker</th><th>Company</th><th>Sector</th><th>Qty</th><th>Price</th><th>Value</th><th>%</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
+    if (document.getElementById('tab-portfolio-chart').classList.contains('active')) {
+      loadPortfolioChart();
+    }
   } catch(e) {
     document.getElementById('holdingsContent').innerHTML = `<div class="error-msg">Failed to load: ${e.message}</div>`;
   }
@@ -507,22 +512,36 @@ async function loadHoldings() {
 
 async function loadPortfolioChart() {
   if (!currentCustomerId) return;
-  const end = new Date().toISOString().slice(0, 10);
-  const start = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  if (!lastHoldingsMeta.as_of) {
+    try {
+      const h = await apiFetch(`/customers/${currentCustomerId}/holdings`);
+      if (h && h.as_of) lastHoldingsMeta = { as_of: h.as_of, total_usd: h.total_value_usd || 0 };
+    } catch(e) {}
+  }
+  const end = lastHoldingsMeta.as_of || new Date().toISOString().slice(0, 10);
+  const start = new Date(new Date(end).getTime() - 90 * 86400000).toISOString().slice(0, 10);
   try {
-    const data = await apiFetch(`/customers/${currentCustomerId}/portfolio-value?from_date=${start}&to_date=${end}`);
+    let data = await apiFetch(`/customers/${currentCustomerId}/portfolio-value?from_date=${start}&to_date=${end}`);
+    if (!Array.isArray(data) || data.length === 0) {
+      const altStart = new Date(new Date(end).getTime() - 365 * 86400000).toISOString().slice(0, 10);
+      data = await apiFetch(`/customers/${currentCustomerId}/portfolio-value?from_date=${altStart}&to_date=${end}`).catch(() => []);
+    }
     if (portfolioChart) portfolioChart.destroy();
     const ctx = document.getElementById('portfolioChart').getContext('2d');
+    const rate = currency === 'USD' ? 1 : (FX_RATES[currency] || 1);
+    let labels = Array.isArray(data) ? data.map(d => d.date) : [];
+    let values = Array.isArray(data) ? data.map(d => (d.value_usd) / rate) : [];
+    if (!labels.length && lastHoldingsMeta.as_of) {
+      labels = [start, end];
+      values = [lastHoldingsMeta.total_usd / rate, lastHoldingsMeta.total_usd / rate];
+    }
     portfolioChart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: data.map(d => d.date),
+        labels,
         datasets: [{
           label: `Portfolio Value (${currency})`,
-          data: data.map(d => {
-            const rate = currency === 'USD' ? 1 : (FX_RATES[currency] || 1);
-            return d.value_usd / rate;
-          }),
+          data: values,
           borderColor: '#2E75B6', backgroundColor: 'rgba(46,117,182,0.1)',
           fill: true, tension: 0.3, pointRadius: 2,
         }]
